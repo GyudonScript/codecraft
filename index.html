@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TS Code Space</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/typescript/5.5.4/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prettier/3.3.3/standalone.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prettier/3.3.3/plugins/typescript.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prettier/3.3.3/plugins/babel.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prettier/3.3.3/plugins/estree.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prettier/3.3.3/plugins/html.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prettier/3.3.3/plugins/postcss.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --line: #374151;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --primary: #60a5fa;
+      --primary-2: #3b82f6;
+      --success: #34d399;
+      --danger: #f87171;
+      --warning: #fbbf24;
+      --editor: #0b1220;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", Meiryo, sans-serif;
+      overflow: hidden;
+    }
+
+    body {
+      display: block;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      width: 100%;
+      height: 100vh;
+      overflow: hidden;
+      background: var(--bg);
+    }
+
+    .sidebar {
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .title {
+      padding: 16px 14px;
+      font-size: 1.2rem;
+      font-weight: 700;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,0.03);
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    .file-tools {
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,0.01);
+    }
+
+    .file-tools .row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0b1220;
+      color: var(--text);
+      padding: 10px 12px;
+      outline: none;
+      font-size: 14px;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(96,165,250,0.2);
+    }
+
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 12px;
+      cursor: pointer;
+      font-weight: 600;
+      background: var(--primary);
+      color: white;
+      transition: 0.15s ease;
+      flex-shrink: 0;
+    }
+
+    button:hover {
+      background: var(--primary-2);
+    }
+
+    button.secondary {
+      background: #374151;
+    }
+
+    button.secondary:hover {
+      background: #4b5563;
+    }
+
+    .file-list {
+      list-style: none;
+      margin: 0;
+      padding: 10px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      flex: 1;
+      min-height: 0;
+      scrollbar-width: thin;
+      scrollbar-color: #4b5563 transparent;
+    }
+
+    .file-list::-webkit-scrollbar {
+      width: 8px;
+    }
+    .file-list::-webkit-scrollbar-thumb {
+      background: #4b5563;
+      border-radius: 10px;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 8px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      user-select: none;
+      transition: 0.15s ease;
+      min-width: 0;
+    }
+
+    .file-item:hover {
+      background: rgba(255,255,255,0.03);
+    }
+
+    .file-item.active {
+      background: rgba(96,165,250,0.12);
+      border-color: rgba(96,165,250,0.45);
+    }
+
+    .file-name {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .delete-file {
+      background: rgba(248,113,113,0.10);
+      border: 1px solid rgba(248,113,113,0.50);
+      color: var(--danger);
+      padding: 4px 8px;
+      font-size: 0.75rem;
+      flex-shrink: 0;
+    }
+
+    .main {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      height: 100vh;
+      overflow: hidden;
+      background: var(--bg);
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,0.02);
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 3;
+    }
+
+    .toolbar-left,
+    .toolbar-right {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .status {
+      border: 1px solid rgba(52,211,153,0.35);
+      background: rgba(52,211,153,0.08);
+      color: var(--success);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+
+    .editor-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+      background: var(--editor);
+    }
+
+    textarea {
+      flex: 1;
+      width: 100%;
+      min-height: 0;
+      resize: none;
+      border: none;
+      background: var(--editor);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.6;
+      padding: 20px 22px;
+      font-family: "Consolas", "Courier New", monospace;
+      outline: none;
+      tab-size: 2;
+      overflow: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #4b5563 transparent;
+    }
+
+    textarea::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    textarea::-webkit-scrollbar-thumb {
+      background: #4b5563;
+      border-radius: 10px;
+    }
+
+    .CodeMirror { height: 100%; width: 100%; background: var(--editor); color: #d4d4d4; font: 15px/1.6 Consolas, "Courier New", monospace; }
+    .CodeMirror-gutters { background: #111827; border-right: 1px solid #374151; }
+    .CodeMirror-linenumber { color: #64748b; }
+    .cm-s-material-darker .cm-keyword { color: #c792ea; }
+    .cm-s-material-darker .cm-def { color: #82aaff; }
+    .cm-s-material-darker .cm-variable-2, .cm-s-material-darker .cm-property { color: #f07178; }
+    .cm-s-material-darker .cm-string { color: #c3e88d; }
+    .cm-s-material-darker .cm-number { color: #f78c6c; }
+    .cm-s-material-darker .cm-comment { color: #697098; }
+    .editor-wrap { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+    .footer {
+      border-top: 1px solid var(--line);
+      background: rgba(255,255,255,0.02);
+      padding: 8px 12px;
+      color: var(--muted);
+      font-size: 0.8rem;
+      flex-shrink: 0;
+    }
+
+    .hidden-input {
+      display: none;
+    }
+
+    @media (max-width: 760px) {
+      .app {
+        grid-template-columns: 1fr;
+        height: 100vh;
+      }
+
+      .sidebar {
+        height: 230px;
+        border-right: none;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .main {
+        height: calc(100vh - 230px);
+      }
+
+      .toolbar {
+        padding: 10px 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="title">TS Code Space</div>
+
+      <div class="file-tools">
+        <div class="row">
+          <input id="newFileName" type="text" value="newFile" placeholder="ファイル名" />
+        </div>
+        <div class="row">
+          <button id="addFileBtn" type="button">＋ ファイル追加</button>
+        </div>
+        <div class="row">
+          <button id="importFileBtn" type="button" class="secondary">読込</button>
+        </div>
+      </div>
+
+      <ul id="fileList" class="file-list"></ul>
+    </aside>
+
+    <main class="main">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <button id="checkBtn" type="button" class="secondary">エラー確認</button>
+          <button id="formatBtn" type="button" class="secondary">整形</button>
+          <button id="resetBtn" type="button" class="secondary">リセット</button>
+        </div>
+
+        <div class="toolbar-right">
+          <button id="downloadZipBtn" type="button">ZIP 書き出し</button>
+          <div id="status" class="status">TypeScript準備完了</div>
+        </div>
+      </div>
+
+      <div class="editor-wrap">
+        <div id="editor" aria-label="TypeScript editor" style="height:100%;width:100%;"></div>
+      </div>
+
+      <div class="footer">初期ファイル名: index.ts</div>
+    </main>
+  </div>
+
+  <input id="importFileInput" class="hidden-input" type="file" accept=".ts,.tsx,.js,.jsx,.json,.html,.css,.scss,.xml,.md,.txt,.zip" multiple />
+
+  <script>
+    const STORAGE_KEY = "ts_code_space_v3_files";
+    const defaultFiles = [{ name: "index.ts", content: "const message: string = 'Hello, TypeScript!';\nconsole.log(message);\n" }];
+    const state = { files: [], activeName: "index.ts" };
+    const fileList = document.getElementById("fileList");
+    const newFileNameInput = document.getElementById("newFileName");
+    const statusEl = document.getElementById("status");
+    const importFileInput = document.getElementById("importFileInput");
+    const editorHost = document.getElementById("editor");
+    const extMode = { ts: "text/typescript", tsx: "text/typescript", js: "text/javascript", jsx: "text/javascript", mjs: "text/javascript", cjs: "text/javascript", json: {name:"javascript", json:true}, html: "htmlmixed", htm: "htmlmixed", css: "css", scss: "text/x-scss", xml: "xml", md: "text/plain", txt: "text/plain" };
+    const cm = CodeMirror(editorHost, { value:"", mode:"text/typescript", theme:"material-darker", lineNumbers:true, lineWrapping:false, tabSize:2, indentUnit:2, indentWithTabs:false, autoCloseBrackets:true, matchBrackets:true, autofocus:false, extraKeys:{"Tab": cm => cm.somethingSelected() ? cm.indentSelection("add") : cm.replaceSelection("  ", "end"), "Ctrl-S": () => saveCurrent()} });
+    function setStatus(text, color="#34d399") { statusEl.textContent=text; statusEl.style.color=color; }
+    function normalizeFileName(inputName) {
+      let name=String(inputName||"").replace(/\\/g,"/").split("/").filter(x=>x && x!=="." && x!=="..").join("/").trim();
+      name=name.replace(/[^a-zA-Z0-9._\-/]/g,"_");
+      if(!name) name="newFile.ts";
+      if(!/\.[a-z0-9]{1,8}$/i.test(name)) name += ".ts";
+      return name;
+    }
+    function loadFiles(){ try { const a=JSON.parse(localStorage.getItem(STORAGE_KEY)||"null"); return Array.isArray(a)&&a.length ? a.filter(x=>x&&typeof x.name==="string").map(x=>({name:normalizeFileName(x.name),content:typeof x.content==="string"?x.content:""})) : [...defaultFiles]; } catch(e){return [...defaultFiles];} }
+    function saveFiles(){ try { localStorage.setItem(STORAGE_KEY,JSON.stringify(state.files)); } catch(e){setStatus("保存容量を超えました。ZIPに書き出してください", "#fbbf24");} }
+    function getActiveFile(){return state.files.find(f=>f.name===state.activeName)||state.files[0];}
+    function modeFor(name){const ext=(name.split(".").pop()||"").toLowerCase();return extMode[ext]||"text/plain";}
+    function syncEditor(){const f=getActiveFile(); cm.setOption("mode",f?modeFor(f.name):"text/typescript"); cm.setValue(f?f.content:""); cm.clearHistory();}
+    function saveCurrent(){const f=getActiveFile();if(f){f.content=cm.getValue();saveFiles();}}
+    let saveTimer;
+    cm.on("change",()=>{clearTimeout(saveTimer);saveTimer=setTimeout(saveCurrent,120);});
+    function renderFiles(){
+      const frag=document.createDocumentFragment();
+      state.files.forEach(file=>{const item=document.createElement("li");item.className="file-item"+(file.name===state.activeName?" active":"");item.dataset.name=file.name;
+        const n=document.createElement("div");n.className="file-name";n.textContent=file.name;
+        const del=document.createElement("button");del.type="button";del.className="delete-file";del.textContent="削除";
+        del.addEventListener("click",e=>{e.stopPropagation();deleteFile(file.name);});
+        item.addEventListener("click",()=>{saveCurrent();state.activeName=file.name;renderFiles();syncEditor();});
+        item.append(n,del);frag.appendChild(item);
+      }); fileList.replaceChildren(frag);
+    }
+    function addFile(rawName){const name=normalizeFileName(rawName);if(state.files.some(f=>f.name===name)){setStatus("同じ名前のファイルが既にあります: "+name,"#fbbf24");return;}saveCurrent();state.files.push({name,content:""});state.activeName=name;saveFiles();renderFiles();syncEditor();setStatus("ファイルを追加しました: "+name);}
+    function deleteFile(name){if(state.files.length<=1){setStatus("最低1つのファイルは必要です","#fbbf24");return;}state.files=state.files.filter(f=>f.name!==name);if(state.activeName===name)state.activeName=state.files[0].name;saveFiles();renderFiles();syncEditor();setStatus("削除しました: "+name);}
+    function formatCode(){
+      const f=getActiveFile();if(!f)return;const source=cm.getValue();const ext=f.name.split(".").pop().toLowerCase();
+      const parserMap={ts:"typescript",tsx:"typescript",js:"babel",jsx:"babel",mjs:"babel",cjs:"babel",json:"json",html:"html",htm:"html",css:"css",scss:"scss"};const parser=parserMap[ext];
+      if(!parser){setStatus("このファイル形式の自動整形には対応していません","#fbbf24");return;}
+      try{const plugins=[prettierPlugins.estree,prettierPlugins.typescript,prettierPlugins.babel,prettierPlugins.html,prettierPlugins.postcss].filter(Boolean);const result=prettier.format(source,{parser,plugins,semi:true,singleQuote:true,tabWidth:2,useTabs:false});Promise.resolve(result).then(code=>{cm.setValue(code);saveCurrent();setStatus("整形しました");}).catch(e=>{setStatus("整形できません: "+friendlyError(e.message),"#f87171");});}catch(e){setStatus("整形できません: "+friendlyError(e.message),"#f87171");}
+    }
+    const jpMessages=[["';' expected","「;」が必要です"],["'}' expected","「}」が必要です"],["'(' expected","「(」が必要です"],["')' expected","「)」が必要です"],["Declaration or statement expected","宣言または文の書き方が正しくありません"],["Unexpected token","予期しない記号があります"],["Cannot find name","名前が見つかりません"],["Type 'string' is not assignable to type 'number'","文字列を数値型に代入できません"],["Expression expected","式を入力してください"],["An unterminated string literal","文字列の閉じ忘れがあります"],[" unterminated","閉じ忘れがあります"]];
+    function friendlyError(msg){let out=String(msg||"不明なエラー");for(const [en,jp] of jpMessages)out=out.replaceAll(en,jp);return out;}
+    function checkErrors(){saveCurrent();const f=getActiveFile();if(!f)return;try{
+      if(!/\.(ts|tsx|js|jsx|mjs|cjs)$/i.test(f.name)){setStatus("このファイル形式はエラー確認の対象外です","#fbbf24");return;}
+      const r=ts.transpileModule(cm.getValue(),{fileName:f.name,reportDiagnostics:true,compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.ESNext,jsx:ts.JsxEmit.React}});const ds=r.diagnostics||[];
+      if(!ds.length){setStatus("構文エラーは見つかりませんでした");return;}
+      const messages=ds.map(d=>{const msg=ts.flattenDiagnosticMessageText(d.messageText,"\n");const pos=d.file&&d.start!=null?d.file.getLineAndCharacterOfPosition(d.start):null;return (pos?`${pos.line+1}行 ${pos.character+1}列: `:"")+friendlyError(msg);});setStatus(`エラーを検出: ${ds.length}件`,"#fbbf24");alert(messages.join("\n\n"));
+    }catch(e){setStatus("エラー確認に失敗しました","#f87171");alert("エラー確認に失敗しました。ライブラリの読み込み状態を確認してください。\n"+friendlyError(e.message));}}
+    function resetProject(){if(!confirm("現在のファイルをすべて初期状態に戻しますか？"))return;state.files=defaultFiles.map(f=>({...f}));state.activeName="index.ts";saveFiles();renderFiles();syncEditor();setStatus("初期状態に戻しました");}
+    async function exportZip(){saveCurrent();try{if(!window.JSZip)throw Error("ZIPライブラリが読み込まれていません");const zip=new JSZip();state.files.forEach(f=>zip.file(f.name,f.content));const blob=await zip.generateAsync({type:"blob",compression:"DEFLATE"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="project.zip";a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);setStatus("ZIPを書き出しました");}catch(e){setStatus("ZIP書き出し失敗: "+friendlyError(e.message),"#f87171");}}
+    async function importSingle(file){const content=await file.text();const name=normalizeFileName(file.name);const old=state.files.find(f=>f.name===name);if(old)old.content=content;else state.files.push({name,content});state.activeName=name;}
+    async function importZip(file){if(!window.JSZip)throw Error("ZIPライブラリが読み込まれていません");const zip=await JSZip.loadAsync(file,{checkCRC32:true});const imported=[];const entries=Object.values(zip.files).filter(e=>!e.dir&&!e.name.startsWith("__MACOSX/")&&!e.name.split("/").pop().startsWith("."));
+      for(const entry of entries){const path=entry.name.replace(/\\/g,"/").split("/").filter(x=>x&&x!=="."&&x!=="..").join("/");if(!path)continue;const ext=path.split(".").pop().toLowerCase();if(!["ts","tsx","js","jsx","mjs","cjs","json","html","htm","css","scss","xml","md","txt"].includes(ext))continue;const content=await entry.async("text");imported.push({name:normalizeFileName(path),content});}
+      if(!imported.length)throw Error("ZIP内に読み込めるソースファイルがありません (.ts/.js/.json/.html/.css/.md/.txt など)");
+      const map=new Map(state.files.map(f=>[f.name,f]));for(const f of imported)map.set(f.name,f);state.files=Array.from(map.values());state.activeName=imported[0].name;saveFiles();renderFiles();syncEditor();setStatus(`ZIPを読み込みました: ${imported.length}ファイル`);
+    }
+    // モバイルでは、コード入力欄以外をタップしたらソフトウェアキーボードを閉じる。
+    // captureで先にフォーカスを外し、ボタンなどのクリック動作はそのまま通す。
+    document.addEventListener("pointerdown", event => {
+      if (!window.matchMedia("(max-width: 760px)").matches) return;
+      const target = event.target;
+      if (target && target.closest && target.closest(".CodeMirror")) return;
+      const inputField = cm.getInputField();
+      if (inputField && document.activeElement === inputField) {
+        inputField.blur();
+      }
+    }, true);
+
+    document.getElementById("addFileBtn").addEventListener("click",()=>{const v=newFileNameInput.value.trim();if(!v){setStatus("ファイル名を入力してください","#fbbf24");return;}addFile(v);newFileNameInput.value="newFile";});
+    document.getElementById("checkBtn").addEventListener("click",checkErrors);document.getElementById("formatBtn").addEventListener("click",formatCode);document.getElementById("resetBtn").addEventListener("click",resetProject);document.getElementById("downloadZipBtn").addEventListener("click",exportZip);
+    document.getElementById("importFileBtn").addEventListener("click",()=>{importFileInput.value="";importFileInput.click();});
+    importFileInput.addEventListener("change",async e=>{const files=Array.from(e.target.files||[]);if(!files.length)return;saveCurrent();setStatus("ファイルを読み込み中...");try{for(const file of files){if(file.name.toLowerCase().endsWith(".zip"))await importZip(file);else await importSingle(file);}saveFiles();renderFiles();syncEditor();setStatus(`読み込み完了: ${files.length}個`);}catch(err){console.error(err);setStatus("読み込み失敗: "+friendlyError(err.message),"#f87171");alert("ファイルを読み込めませんでした。\n"+friendlyError(err.message));}finally{e.target.value="";}});
+    state.files=loadFiles();state.activeName=state.files[0]?.name||"index.ts";renderFiles();syncEditor();setStatus("TypeScriptエディター準備完了");
+  </script>
+</body>
+</html>
